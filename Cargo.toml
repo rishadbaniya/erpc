@@ -1,5 +1,5 @@
 [package]
-name = "TNTs"
+name = "rpc"
 version = "0.1.0"
 edition = "2021"
 
@@ -8,3 +8,9 @@ edition = "2021"
 [dependencies]
 actix-web = "4.3.1"
 tokio = { version = "1.26.0", features = ["full"] }
+tor-dirclient = "0.6.2"
+tor-netdoc = "0.6.2"
+tor-rtcompat = {version = "0.8.1", features = ["tokio", "rustls"]}
+tor-dirmgr = {version = "0.9.2", features = ["full"] }
+arti-client = "0.8.2"
+
