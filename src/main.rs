@@ -3,40 +3,159 @@ use arti_client::config::circ::PathConfigBuilder;
 use arti_client::TorClient;
 use arti_client::TorClientConfig;
 use std::fs;
+use std::sync::Arc;
+use std::vec;
+use tokio::sync::Mutex;
+use tor_chanmgr::ChannelUsage;
 use tor_circmgr::path::TorPath;
 use tor_circmgr::CircMgr;
+use tor_netdir::MdReceiver;
+use tor_netdir::PartialNetDir;
+use tor_netdir::Relay;
 use tor_netdoc::doc::netstatus::Consensus;
 use tor_netdoc::doc::netstatus::MdConsensus;
+use tor_proto::circuit::CircParameters;
+use tor_proto::circuit::ClientCirc;
+pub fn generate_all_relay_two_hop_circuit_combinations(
+    relays: Vec<Relay>,
+) -> Vec<Vec<(Relay, Relay)>> {
+    let mut total_two_hops: Vec<Vec<(Relay, Relay)>> = vec![];
+    for i in 1..relays.len() {
+        let mut two_hops: Vec<(Relay, Relay)> = vec![];
+        for j in 1..relays.len() {
+            two_hops.push((relays[i].clone(), relays[j].clone()));
+        }
+        total_two_hops.push(two_hops);
+    }
+    return total_two_hops;
+}
 
 #[tokio::main]
 async fn main() {
-    //let x = tor_netdoc::doc::netstatus::Consensus<Relay>;
-    let file_contents = fs::read_to_string("xyz").unwrap();
-    let (_, _, x) = MdConsensus::parse(&file_contents).unwrap();
-    let (m, t) = x.dangerously_into_parts();
+    let tor_client_config = TorClientConfig::default();
 
-    println!("{:#?}", m);
+    let tor_client = TorClient::create_bootstrapped(tor_client_config)
+        .await
+        .unwrap();
 
-    // Generate the Microdescriptor consensus document at the default storage provided by storage
-    // config
-    // TODO: Make use of it to explore the Relay
+    let net_dir = tor_client.dirmgr().timely_netdir().unwrap();
 
-    //let mut tor_client_config_builder = TorClientConfig::builder();
+    let relays: Vec<Relay> = net_dir.relays().into_iter().collect();
 
-    //let x = TorPath::new_multihop(relays);
-    //let y = tor_client_config_builder.path_rules();
-    //let x: AddrPortPattern = "198.98.61.11:9001".parse().unwrap();
-    // Keeping the empty reachable
-    //y.set_reachable_addrs(vec![]);
-    //y.set_reachable_addrs(vec![x]);
+    //let total_two_hops_relay_circuits =
+    //generate_all_relay_two_hop_circuit_combinations(relays.clone());
 
-    //let tor_client_config = tor_client_config_builder.build().unwrap();
+    //let x: Vec<(Relay, Relay)> = total_two_hops_relay_circuits
+    //.into_iter()
+    //.flatten()
+    //.collect();
 
-    //let tor_client = TorClient::create_bootstrapped(tor_client_config)
-    //.await
-    //.unwrap();
+    //println!("the length is {:?}", x.len());
 
-    //let x = tor_client.connect(("google.com", 80)).await.unwrap();
+    //let mut ok = Arc::new(Mutex::new(0));
+    //let mut err = Arc::new(Mutex::new(0));
 
-    //println!("{:#?}", x);
+    let cir_mgr = tor_client.circmgr().clone();
+
+    for relay in relays {
+        //tokio::spawn(async move {
+
+        //});
+
+        let path = tor_circmgr::path::TorPath::new_one_hop((relay).clone());
+        let path = tor_circmgr::path::TorPath::new_multihop([relays[0], relays[1]]);
+        let circ_parameters = CircParameters::default();
+        let circ_usage = ChannelUsage::UselessCircuit;
+
+        let cir = cir_mgr
+            .builder()
+            .build(&path, &circ_parameters, circ_usage)
+            .await;
+        match cir {
+            Ok(a) => {
+                println!("{:?}", a);
+                //a.terminate();
+                //println!("{:?}", a.is_closing());
+                //println!("{:#?}", a);
+            }
+            Err(b) => {}
+        }
+        //if r.is_ok() {
+        //println!("I got ok {:?}", ok);
+        //let mut _ok = ok.lock().await;
+        //*_ok = *_ok + 1;
+        //} else {
+        //println!("I got error :{:?}", err);
+        //let mut _err = ok.lock().await;
+        //*_err = *_err + 1;
+    }
 }
+//.build(&path, &circ_parameters, circ_usage)
+//.await;
+
+//for relay in relays {
+////let path = tor_circmgr::path::TorPath::new_multihop(vec![relays[0].clone(), relays[1].clone()]);
+//let path = tor_circmgr::path::TorPath::new_one_hop(relay.clone());
+//let circ_parameters = CircParameters::default();
+//let circ_usage = ChannelUsage::UselessCircuit;
+
+//if x.is_ok() {
+//ok += 1;
+//println!("Ok {:?}", ok);
+//} else {
+//err += 1;
+//println!("Err {:?}", err);
+//}
+//tokio::task::spawn(async {});
+//}
+
+//let path = tor_circmgr::path::TorPath::new_multihop(vec![relays[0].clone(), relays[1].clone()]);
+
+//let circ = arti_client
+//.circmgr()
+//.builder()
+//.build(&path, &params, usage)
+//.await;
+//let x = Ci
+//let params = CircParameters::default();
+//let usage = ChannelUsage::UselessCircuit;
+//let x = tor_client.di
+//let net_dir = tor_client
+
+//let x = tor_netdoc::doc::netstatus::Consensus<Relay>;
+// NOTE : These are directly created from the tor_netdoc, gotta use tor_netdir to create
+// abstractions on the ones of tor_netdoc
+//let file_contents = fs::read_to_string("test_md_consensus").unwrap();
+//let (_, _, x) = MdConsensus::parse(&file_contents).unwrap();
+//let (m, t) = x.dangerously_into_parts();
+
+//let md_consensus = m.consensus;
+
+//let net_dir = PartialNetDir::new(md_consensus, None);
+
+//print!("{:#?}", net_dir);
+////let x = net_dir.missing_microdescs();
+
+//println!("{:?}", net_dir.n_missing());
+
+//TorPath::new_multihop(path);
+
+// Generate the Microdescriptor consensus document at the default storage provided by storage
+// config
+// TODO: Make use of it to explore the Relay
+
+//let mut tor_client_config_builder = TorClientConfig::builder();
+
+//let x = TorPath::new_multihop(relays);
+//let y = tor_client_config_builder.path_rules();
+//let x: AddrPortPattern = "198.98.61.11:9001".parse().unwrap();
+// Keeping the empty reachable
+//y.set_reachable_addrs(vec![]);
+//y.set_reachable_addrs(vec![x]);
+
+//let tor_client_config = tor_client_config_builder.build().unwrap();
+
+//.await
+//.unwrap();
+
+//let x = tor_client.connect(("google.com", 80)).await.unwrap();

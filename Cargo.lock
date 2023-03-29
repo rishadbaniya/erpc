@@ -2199,6 +2199,7 @@ dependencies = [
  "actix-web",
  "arti-client",
  "tokio",
+ "tor-chanmgr",
  "tor-circmgr",
  "tor-dirclient",
  "tor-dirmgr",
