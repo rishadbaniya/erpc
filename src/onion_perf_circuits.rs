@@ -194,7 +194,8 @@ impl OnionPerfRunnerHost {
         println!("Created {}.json \n", self.host_name);
 
         //  Parsing the JSON file
-        let onion_perf_data: OnionPerfAnalysisData = serde_json::from_slice(&decompressed_data)?;
+        let onion_perf_data: OnionPerfAnalysisData =
+            serde_json::from_slice(&decompressed_data).unwrap();
         for x in onion_perf_data
             .data
             .get(&self.host_name)
@@ -223,9 +224,9 @@ pub struct OnionPerfData {
     /// List of all OnionPerf host based data
     all_hosts: Vec<OnionPerfRunnerHost>,
 
-    all_sucessful_relay_to_relay_combinations: Vec<(String, String)>,
+    all_sucessful_relay_to_relay_combinations: Vec<Vec<RelayDetail>>,
 
-    all_failed_relay_to_relay_combinations: Vec<(String, String)>,
+    all_failed_relay_to_relay_combinations: Vec<Vec<RelayDetail>>,
 }
 
 impl OnionPerfData {
@@ -258,7 +259,7 @@ impl OnionPerfData {
         })
     }
 
-    pub async fn create_all_relay_to_relay_combinations(&self) {
+    pub async fn create_all_relay_to_relay_combinations(&mut self) {
         let mut _2_paths = 0;
         let mut _3_paths = 0;
         let mut _4_paths = 0;
@@ -271,6 +272,10 @@ impl OnionPerfData {
         for host in self.all_hosts.iter() {
             for failed_circuit in host.failed_circuits.iter() {
                 if let Some(ref path) = failed_circuit.path {
+                    for relays in path.windows(2) {
+                        self.all_failed_relay_to_relay_combinations
+                            .push(relays.to_vec())
+                    }
                     if path.len() == 2 {
                         __2_paths += 1;
                     } else if path.len() == 3 {
@@ -285,6 +290,10 @@ impl OnionPerfData {
 
             for successful_circuit in host.successful_circuits.iter() {
                 if let Some(ref path) = successful_circuit.path {
+                    for relays in path.windows(2) {
+                        self.all_sucessful_relay_to_relay_combinations
+                            .push(relays.to_vec())
+                    }
                     if path.len() == 2 {
                         _2_paths += 1;
                     } else if path.len() == 3 {
@@ -330,6 +339,20 @@ impl OnionPerfData {
         println!(
             "The total 5 hop circuit in failed circuits are : {}",
             __5_paths
+        );
+
+        println!("---------------------------------------------------");
+
+        println!(
+            "The total 2 relay combinatiosn that were in successful circuit were {}",
+            self.all_sucessful_relay_to_relay_combinations.len()
+        );
+
+        println!("---------------------------------------------------");
+
+        println!(
+            "The total 2 relay combinatiosn that were in failed circuit were {}",
+            self.all_failed_relay_to_relay_combinations.len()
         );
     }
 }

@@ -19,6 +19,7 @@ use tor_netdoc::doc::netstatus::Consensus;
 use tor_netdoc::doc::netstatus::MdConsensus;
 use tor_proto::circuit::CircParameters;
 use tor_proto::circuit::ClientCirc;
+use tor_proto::stream::StreamParameters;
 use tor_rtcompat::Runtime;
 
 //use onion_perf_circuits;
@@ -45,72 +46,60 @@ fn gen_thread() {
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() {
-    //let tor_client_config = TorClientConfig::default();
-    //let client = TorClient::create_bootstrapped(tor_client_config)
-    //.await
-    //.unwrap();
+    //let mut onion_perf_data = OnionPerfData::new().await.unwrap();
+    //onion_perf_data
+    //.create_all_relay_to_relay_combinations()
+    //.await;
 
-    let onion_perf_data = OnionPerfData::new().await.unwrap();
-    onion_perf_data
-        .create_all_relay_to_relay_combinations()
-        .await;
+    let tor_client_config = TorClientConfig::default();
+    let client = TorClient::create_bootstrapped(tor_client_config)
+        .await
+        .unwrap();
 
-    //println!("{:?}", onion_perf_data);
+    let net_dir = client.dirmgr().timely_netdir().unwrap();
+    let relays: Vec<Relay> = net_dir.relays().into_iter().collect();
 
-    //println!("{:#?}", x);
-    //let x = OnionPerfData::;
-    //let t = client.
-    //let mut c = vec![];
-    //for _ in 1..i00 {
-    //gen_thread();
-    //println!("CREATING");
-
-    //.await
-    //.unwrap();
-    //c.push(Arc::new(client));
+    //let end_node = {
+    //for ref relay in relays{
+    //if relay.is_flagged_guard()
     //}
+    //};
 
-    //let mut x = vec![];
-    //for i in 1..200 {
-    //let tor_client_config = TorClientConfig::default();
-    //let client = TorClient::create_bootstrapped(tor_client_config)
-    //.await
-    //.unwrap();
-    //}
+    for i in 0..100 {
+        let path = tor_circmgr::path::TorPath::new_multihop::<()>(vec![
+            relays[i].clone(),
+            relays[i + 1].clone(),
+            relays[i + 2].clone(),
+            relays[i + 3].clone(),
+            relays[i + 4].clone(),
+        ]);
 
-    //    let net_dir = client.dirmgr().timely_netdir().unwrap();
-    //    let relays: Vec<Relay> = net_dir.relays().into_iter().collect();
-    //
-    //    for i in 0..relays.len() {
-    //        //let ind1 = 2 * i;
-    //        //let ind2 = 2 * i + 1;
-    //        let path = tor_circmgr::path::TorPath::new_multihop::<()>(vec![
-    //            relays[i].clone(),
-    //            relays[i + 1].clone(),
-    //        ]);
-    //
-    //        let circ_parameters = CircParameters::default();
-    //        let circ_usage = ChannelUsage::UselessCircuit;
-    //
-    //        let cir_mgr = client.circmgr();
-    //        let cir = cir_mgr
-    //            .builder()
-    //            .build(&path, &circ_parameters, circ_usage)
-    //            .await;
-    //
-    //        //println!("Iteration {:?}", i);
-    //
-    //        match cir {
-    //            Ok(c) => {
-    //                tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
-    //                //c.terminate();
-    //                println!("{:#?}", c.channel());
-    //            }
-    //            Err(x) => {
-    //                //println!("{:#?}", x);
-    //            }
-    //        }
-    //    }
+        let circ_parameters = CircParameters::default();
+        let circ_usage = ChannelUsage::UselessCircuit;
+
+        let cir_mgr = client.circmgr();
+
+        let t = std::time::Instant::now();
+        let cir = cir_mgr
+            .builder()
+            .build(&path, &circ_parameters, circ_usage)
+            .await;
+        match cir {
+            Ok(c) => {
+                //println!("{:#?}", c.channel());
+                println!("Time {:?}", std::time::Instant::now().duration_since(t));
+
+                let x = c
+                    .begin_stream("142.251.46.174", 80, Some(StreamParameters::default()))
+                    .await;
+                println!("{:#?}", x);
+                c.terminate();
+            }
+            Err(x) => {
+                //println!("{:#?}", x);
+            }
+        }
+    }
     //    //match cir {
     //Ok(a) => {
     //println!("{:?}", a);
