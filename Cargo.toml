@@ -17,3 +17,6 @@ tor-proto = "0.9.0"
 tor-netdir = "0.8.0"
 arti-client = {version = "0.8.2", features = ["experimental-api"]}
 tor-chanmgr = "0.8.2"
+chrono = "0.4.24"
+rust-lzma = "0.5.1"
+reqwest = "0.11.16"
