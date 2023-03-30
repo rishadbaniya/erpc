@@ -50,7 +50,9 @@ async fn main() {
     //.await
     //.unwrap();
 
-    let onion_perf_data = OnionPerfData::new().await;
+    let onion_perf_data = OnionPerfData::new().await.unwrap();
+
+    //println!("{:?}", onion_perf_data);
 
     //println!("{:#?}", x);
     //let x = OnionPerfData::;

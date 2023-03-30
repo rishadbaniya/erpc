@@ -1,6 +1,9 @@
 use chrono::{Datelike, Duration, TimeZone, Timelike, Utc};
 use lzma::LzmaReader;
 use reqwest::Url;
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
+use std::collections::HashMap;
 use std::fmt::format;
 use std::fs::copy;
 use std::fs::File;
@@ -8,23 +11,66 @@ use std::io::Read;
 use std::io::Write;
 use std::time::Instant;
 
-pub struct OnionPerfData {
-    /// List of URLs for OnionPerfData
-    all_urls: Vec<String>,
+// All hardcoded hosts
+const HOSTS: [&str; 5] = ["op-de7a", "op-hk6a", "op-hk7a", "op-nl7a", "op-us7a"];
+
+// Data Structure that maps to OnionPerf analysis JSON file (Version : 3.1)
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct OnionPerfAnalysisData {
+    //#[serde(skip_deserializing)]
+    data: HashMap<String, Data>,
+
+    #[serde(skip_deserializing)]
+    filters: Option<Value>,
+
+    //Document type
+    #[serde(rename = "type")]
+    _type: String,
+
+    //Document version
+    version: String,
 }
 
-impl OnionPerfData {
-    pub async fn new() -> Result<Self, Box<dyn std::error::Error>> {
-        let all_urls = Self::generate_all_urls();
-        Self::download_all_onion_perf_data(all_urls.clone()).await;
-        Ok(Self { all_urls })
-    }
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct Data {
+    ///Public IP address of the measuring host
+    measurement_ip: String,
 
-    // Generates a list of URLs for OnionPerf data
-    fn generate_all_urls() -> Vec<String> {
-        // All hardcoded hosts
-        let hosts = vec!["op-de7a", "op-hk6a", "op-hk7a", "op-nl7a", "op-us7a"];
+    ///Measurement data obtained from client-side TGen logs
+    tgen: Value,
 
+    //Metadata obtained from client-side Tor controller logs
+    tor: Tor,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct Tor {
+    circuits: Circuits,
+
+    #[serde(skip_deserializing)]
+    streams: Option<Value>,
+
+    #[serde(skip_deserializing)]
+    guards: Option<Value>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct Circuits {}
+
+#[derive(Debug, Clone)]
+pub struct OnionPerfRunnerHost {
+    /// Name of the host
+    host_name: String,
+
+    /// The URL of the OnionPerf data produced by the host
+    url: String,
+
+    /// The data of the host
+    data: Option<OnionPerfAnalysisData>,
+}
+
+impl OnionPerfRunnerHost {
+    fn new<T: AsRef<str>>(host_name: T) -> Self {
         let utc_time = Utc::now();
 
         // Minimum expected UTC time for OnionPerf Data
@@ -55,56 +101,81 @@ impl OnionPerfData {
             )
         };
 
-        let all_urls : Vec<String> = hosts
-            .into_iter()
-            .map(|host| {
-                format!(
-                    "https://collector.torproject.org/recent/onionperf/{}.{}.onionperf.analysis.json.xz",
-                    download_date, host
-                )
-            })
-            .collect();
-
-        all_urls
+        let url = format!(
+            "https://collector.torproject.org/recent/onionperf/{}.{}.onionperf.analysis.json.xz",
+            download_date,
+            host_name.as_ref()
+        );
+        Self {
+            host_name: host_name.as_ref().to_owned(),
+            url,
+            data: None,
+        }
     }
 
-    // TODO : There are tons of Unwrap happening here, replace with with a much more verbose error
-    // handling or use error propagation
-    pub async fn download_all_onion_perf_data(urls: Vec<String>) {
-        // TODO : Decide whether to use the tor network or just make a direct connection and
-        // download
-        for (index, ref url) in urls.into_iter().enumerate() {
-            let current_instant = Instant::now();
+    /// Attempts to download and parse the OnionPerfData of the certain host
+    pub async fn download_and_parse_data(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+        let current_instant = Instant::now();
 
-            // Download compressed file
-            println!("Downloading OnionPerfData from {}", url);
-            let url = Url::parse(url).unwrap();
-            let response = reqwest::get(url).await.unwrap().bytes().await.unwrap();
-            println!(
-                "Download time : {:?} | Size(in Bytes) : {}",
-                Instant::now().duration_since(current_instant),
-                response.len()
-            );
+        // Download compressed file
+        println!("Downloading OnionPerfData from {}", self.url);
+        let url = Url::parse(&self.url)?;
+        let response = reqwest::get(url).await?.bytes().await?;
+        println!(
+            "Download time : {:?} | Size(in Bytes) : {}",
+            Instant::now().duration_since(current_instant),
+            response.len()
+        );
 
-            let current_instant = Instant::now();
+        let current_instant = Instant::now();
 
-            // Decompress the compressed file
-            println!("Decompressing {index}.json.xz");
-            let mut lzma_reader = LzmaReader::new_decompressor(&response[..]).unwrap();
-            // Eventhough i saw that OnionPerf JSON data is around 30-40  Mib, assuming upto 100 times of decompression for max safety,
-            println!("{:?}", response.len() * 100);
-            let mut decompressed_data = Vec::with_capacity(response.len() * 100);
-            lzma_reader.read_to_end(&mut decompressed_data).unwrap();
-            println!(
-                "Decompression time : {:?} | Size(in Bytes) : {}",
-                Instant::now().duration_since(current_instant),
-                decompressed_data.len()
-            );
+        // Decompress the compressed file
+        println!("Decompressing {}.json.xz", self.host_name);
+        let mut lzma_reader = LzmaReader::new_decompressor(&response[..])?;
 
-            // Create the json data file
-            let mut dest_file = File::create(format!("{index}.json")).unwrap();
-            dest_file.write_all(&decompressed_data).unwrap();
-            println!("Created {index}.json \n");
-        }
+        // Eventhough i saw that OnionPerf JSON data is around 30-40 Mib (Decompressed from around 1 Mb), assuming upto 100 times of decompression for max safety right now
+        println!("{:?}", response.len() * 100);
+        let mut decompressed_data = Vec::with_capacity(response.len() * 100);
+        lzma_reader.read_to_end(&mut decompressed_data)?;
+        println!(
+            "Decompression time : {:?} | Size(in Bytes) : {}",
+            Instant::now().duration_since(current_instant),
+            decompressed_data.len()
+        );
+
+        // Create the json data file
+        let mut dest_file = File::create(format!("{}.json", self.host_name))?;
+        dest_file.write_all(&decompressed_data)?;
+        println!("Created {}.json \n", self.host_name);
+
+        //  Parsing the JSON file
+        let onion_perf_data: OnionPerfAnalysisData = serde_json::from_slice(&decompressed_data)?;
+        let ref x = onion_perf_data
+            .data
+            .get(&self.host_name)
+            .unwrap()
+            .tor
+            .circuits;
+
+        println!("{:?}", x);
+
+        self.data = Some(onion_perf_data);
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct OnionPerfData {
+    /// List of all OnionPerf host based data
+    all_hosts: Vec<OnionPerfRunnerHost>,
+}
+
+impl OnionPerfData {
+    pub async fn new() -> Result<Self, Box<dyn std::error::Error>> {
+        let mut all_hosts = vec![];
+        let mut runner_host = OnionPerfRunnerHost::new(HOSTS[0]);
+        runner_host.download_and_parse_data().await.unwrap();
+        all_hosts.push(runner_host);
+        Ok(Self { all_hosts })
     }
 }
