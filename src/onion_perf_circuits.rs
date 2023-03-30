@@ -45,7 +45,7 @@ pub struct Data {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Tor {
-    circuits: HashMap<String, Value>,
+    circuits: HashMap<String, Circuit>,
 
     #[serde(skip_deserializing)]
     streams: Option<Value>,
@@ -55,7 +55,13 @@ pub struct Tor {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct Circuit {}
+pub struct Circuit {
+    failure_reason_local: Option<String>,
+
+    filtered_out: bool,
+
+    path: Option<Value>,
+}
 
 #[derive(Debug, Clone)]
 pub struct OnionPerfRunnerHost {
@@ -67,6 +73,12 @@ pub struct OnionPerfRunnerHost {
 
     /// The data of the host
     data: Option<OnionPerfAnalysisData>,
+
+    /// A list of ciruits(with path) marked successful by OnionPerf
+    successful_circuits: Vec<Circuit>,
+
+    /// A list of ciruits(with no path) marked failed by OnionPerf
+    failed_circuits: Vec<Circuit>,
 }
 
 impl OnionPerfRunnerHost {
@@ -106,10 +118,16 @@ impl OnionPerfRunnerHost {
             download_date,
             host_name.as_ref()
         );
+
+        let successful_circuits = vec![];
+        let failed_circuits = vec![];
+
         Self {
             host_name: host_name.as_ref().to_owned(),
             url,
             data: None,
+            successful_circuits,
+            failed_circuits,
         }
     }
 
@@ -150,17 +168,24 @@ impl OnionPerfRunnerHost {
 
         //  Parsing the JSON file
         let onion_perf_data: OnionPerfAnalysisData = serde_json::from_slice(&decompressed_data)?;
-        let ref x = onion_perf_data
+        for x in onion_perf_data
             .data
             .get(&self.host_name)
             .unwrap()
             .tor
             .circuits
-            .keys()
+            .values()
             .into_iter()
-            .count();
+        {
+            if let Some(_) = x.path {
+                if let Some(_) = x.failure_reason_local {
+                    self.failed_circuits.push(x.clone());
+                } else {
+                    self.successful_circuits.push(x.clone());
+                }
+            }
+        }
 
-        println!("Total 3 hop circuits {:?}", x);
         self.data = Some(onion_perf_data);
         Ok(())
     }
@@ -174,12 +199,20 @@ pub struct OnionPerfData {
 
 impl OnionPerfData {
     pub async fn new() -> Result<Self, Box<dyn std::error::Error>> {
+        let mut total_successful_circuits = 0;
+        let mut total_failed_circuits = 0;
+
         let mut all_hosts = vec![];
         for host in HOSTS {
             let mut runner_host = OnionPerfRunnerHost::new(host);
             runner_host.download_and_parse_data().await.unwrap();
-            all_hosts.push(runner_host);
+
+            total_failed_circuits += runner_host.failed_circuits.len();
+            total_successful_circuits += runner_host.successful_circuits.len();
         }
+
+        println!("total failed : {:?}", total_failed_circuits);
+        println!("total successful :{:?}", total_successful_circuits);
 
         Ok(Self { all_hosts })
     }
