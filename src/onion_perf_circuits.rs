@@ -45,7 +45,7 @@ pub struct Data {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Tor {
-    circuits: Circuits,
+    circuits: HashMap<String, Value>,
 
     #[serde(skip_deserializing)]
     streams: Option<Value>,
@@ -55,7 +55,7 @@ pub struct Tor {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct Circuits {}
+pub struct Circuit {}
 
 #[derive(Debug, Clone)]
 pub struct OnionPerfRunnerHost {
@@ -155,10 +155,12 @@ impl OnionPerfRunnerHost {
             .get(&self.host_name)
             .unwrap()
             .tor
-            .circuits;
+            .circuits
+            .keys()
+            .into_iter()
+            .count();
 
-        println!("{:?}", x);
-
+        println!("Total 3 hop circuits {:?}", x);
         self.data = Some(onion_perf_data);
         Ok(())
     }
@@ -173,9 +175,12 @@ pub struct OnionPerfData {
 impl OnionPerfData {
     pub async fn new() -> Result<Self, Box<dyn std::error::Error>> {
         let mut all_hosts = vec![];
-        let mut runner_host = OnionPerfRunnerHost::new(HOSTS[0]);
-        runner_host.download_and_parse_data().await.unwrap();
-        all_hosts.push(runner_host);
+        for host in HOSTS {
+            let mut runner_host = OnionPerfRunnerHost::new(host);
+            runner_host.download_and_parse_data().await.unwrap();
+            all_hosts.push(runner_host);
+        }
+
         Ok(Self { all_hosts })
     }
 }
