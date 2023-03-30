@@ -51,6 +51,9 @@ async fn main() {
     //.unwrap();
 
     let onion_perf_data = OnionPerfData::new().await.unwrap();
+    onion_perf_data
+        .create_all_relay_to_relay_combinations()
+        .await;
 
     //println!("{:?}", onion_perf_data);
 

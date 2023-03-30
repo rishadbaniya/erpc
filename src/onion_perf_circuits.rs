@@ -56,11 +56,38 @@ pub struct Tor {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Circuit {
+    //Circuit identifier, obtained from CIRC and CIRC_MINOR events
+    circuit_id: usize,
+
+    //Elapsed seconds until receiving and logging CIRC and CIRC_MINOR events
+    elapsed_seconds: Vec<Value>,
+
+    /// Final end time of the circuit, obtained from the log time of the last CIRC CLOSED or CIRC FAILED event, given in seconds since the epoch
+    unix_ts_start: f32,
+
+    /// Initial start time of the circuit, obtained from the log time of the CIRC LAUNCHED event, given in seconds since the epoch"
+    unix_ts_end: f32,
+
     failure_reason_local: Option<String>,
 
-    filtered_out: bool,
+    ///Build time in seconds, computed as time elapsed between CIRC LAUNCHED and CIRC BUILT events
+    buildtime_seconds: Option<f32>,
 
-    path: Option<Value>,
+    ///Whether this circuit has been filtered out when applying filters in `onionperf filter`
+    ///TODO: Figure out what onionperf filter means
+    filtered_out: Option<bool>,
+
+    ///Path information
+    path: Option<Vec<RelayDetail>>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct RelayDetail {
+    #[serde(rename = "0")]
+    fingerprint: String,
+
+    #[serde(rename = "1")]
+    time_passed: f32,
 }
 
 #[derive(Debug, Clone)]
@@ -195,6 +222,10 @@ impl OnionPerfRunnerHost {
 pub struct OnionPerfData {
     /// List of all OnionPerf host based data
     all_hosts: Vec<OnionPerfRunnerHost>,
+
+    all_sucessful_relay_to_relay_combinations: Vec<(String, String)>,
+
+    all_failed_relay_to_relay_combinations: Vec<(String, String)>,
 }
 
 impl OnionPerfData {
@@ -203,17 +234,102 @@ impl OnionPerfData {
         let mut total_failed_circuits = 0;
 
         let mut all_hosts = vec![];
+
         for host in HOSTS {
             let mut runner_host = OnionPerfRunnerHost::new(host);
             runner_host.download_and_parse_data().await.unwrap();
 
             total_failed_circuits += runner_host.failed_circuits.len();
             total_successful_circuits += runner_host.successful_circuits.len();
+
+            all_hosts.push(runner_host);
         }
 
         println!("total failed : {:?}", total_failed_circuits);
         println!("total successful :{:?}", total_successful_circuits);
 
-        Ok(Self { all_hosts })
+        let all_sucessful_relay_to_relay_combinations = Vec::new();
+        let all_failed_relay_to_relay_combinations = Vec::new();
+
+        Ok(Self {
+            all_hosts,
+            all_failed_relay_to_relay_combinations,
+            all_sucessful_relay_to_relay_combinations,
+        })
+    }
+
+    pub async fn create_all_relay_to_relay_combinations(&self) {
+        let mut _2_paths = 0;
+        let mut _3_paths = 0;
+        let mut _4_paths = 0;
+        let mut _5_paths = 0;
+
+        let mut __2_paths = 0;
+        let mut __3_paths = 0;
+        let mut __4_paths = 0;
+        let mut __5_paths = 0;
+        for host in self.all_hosts.iter() {
+            for failed_circuit in host.failed_circuits.iter() {
+                if let Some(ref path) = failed_circuit.path {
+                    if path.len() == 2 {
+                        __2_paths += 1;
+                    } else if path.len() == 3 {
+                        __3_paths += 1;
+                    } else if path.len() == 4 {
+                        __4_paths += 1;
+                    } else if path.len() == 5 {
+                        __5_paths += 1;
+                    }
+                }
+            }
+
+            for successful_circuit in host.successful_circuits.iter() {
+                if let Some(ref path) = successful_circuit.path {
+                    if path.len() == 2 {
+                        _2_paths += 1;
+                    } else if path.len() == 3 {
+                        _3_paths += 1;
+                    } else if path.len() == 4 {
+                        _4_paths += 1;
+                    } else if path.len() == 5 {
+                        _4_paths += 1;
+                    }
+                }
+            }
+        }
+
+        println!(
+            "The total 2 hop circuit in successful circuits are : {}",
+            _2_paths
+        );
+        println!(
+            "The total 3 hop circuit in successful circuits are : {}",
+            _3_paths
+        );
+        println!(
+            "The total 4 hop circuit in successful circuits are : {}",
+            _4_paths
+        );
+        println!(
+            "The total 5 hop circuit in successful circuits are : {}",
+            _5_paths
+        );
+
+        println!(
+            "The total 2 hop circuit in failed circuits are : {}",
+            __2_paths
+        );
+        println!(
+            "The total 3 hop circuit in failed circuits are : {}",
+            __3_paths
+        );
+        println!(
+            "The total 4 hop circuit in failed circuits are : {}",
+            __4_paths
+        );
+        println!(
+            "The total 5 hop circuit in failed circuits are : {}",
+            __5_paths
+        );
     }
 }
