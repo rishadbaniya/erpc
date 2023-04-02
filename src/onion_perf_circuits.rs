@@ -131,7 +131,7 @@ impl OnionPerfRunnerHost {
             )
         } else {
             // Otherwise, use the previous day's date for the download date
-            let two_day_before_utc = utc_time - Duration::days(1);
+            let two_day_before_utc = utc_time - Duration::days(2);
             format!(
                 "{}-{:02}-{:02}",
                 two_day_before_utc.year(),
