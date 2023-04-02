@@ -2,6 +2,29 @@
 
 A possible collection of tools for relay partition checking using **arti_client**
 
+## How to run?
+
+Make sure you have rust build tools installed
+and then run ```cargo run -- ``` and put the following arguments
+```
+Usage: rpc [OPTIONS]
+
+Options:
+  -g, --gap-duration <GAP_DURATION>
+          Wait duration in seconds [default: 5]
+  -r, --relay-count <RELAY_COUNT>
+          Total no of relays to test randomly from the given data type of the value [default: 400]
+  -s, --should-test-onion-perf
+          Total no of relays to test randomly from the given data type of the value
+  -n, --no-of-threads-to-spin <NO_OF_THREADS_TO_SPIN>
+          Total no of threads to spin i.e total arti_clients you wannaa spin Please make it multiple of 5 [default: 40]
+  -h, --help
+          Print help
+```
+
+or build the binary and follow the arguments
+
+
 ## OnionPerf Logs of current run 
 
 ```
