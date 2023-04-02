@@ -64,7 +64,7 @@ Here's a snippet of one of the line of data produced during that run in [Data.cs
 11ac67307b362b77569af314a9a7a06b9195df19,9e627928dfe5dd5e518a452a503d40880115dfa1,2023-04-01 19:49:40.424670303 UTC,No error
 ```
 
-Here, the first field of the CSV represents the *****source_relay**,********source_relay**,**utc_time**,**error_produced_during_run**
+Here the field of the CSV represents the **source_relay**,**source_relay**,**utc_time**,**error_produced_during_run**
 
 I saw many errors to be **Circuit took too long to build**, which i'm still trying to figure out and might need to go deep into how arti_client does that timeout, whether it sums up the time taken 
 to connect to the guard relay or not, or it just calculates the circuit build time based on time taken to get the CIRC EXTENDED sort of events, i've still room to figure out the ways to look at the CIRC EVENT logs in arti_client, in few weeks i hope to finish this tool 
