@@ -1,8 +1,8 @@
-# rpc (Relay Partition Checking)
+# eRPC (An efficient Relay Partition Checker)
 
-A collection of tools for checking partitions of Relay in Tor
+A possible collection of tools for relay partition checking using **arti_client**
 
-## Logs of current run 
+## OnionPerf Logs of current run 
 
 ```
 Downloading OnionPerfData from https://collector.torproject.org/recent/onionperf/2023-03-31.op-de7a.onionperf.analysis.json.xz
@@ -55,3 +55,6 @@ The total 2 relay combinatiosn that were in successful circuit were 63719
 ---------------------------------------------------
 The total 2 relay combinatiosn that were in failed circuit were 19478
 ```
+
+## Logs for checking relay partition with two hop circuits combination among 400 random relays 
+I ran the partition checking tool for ~ 6 hrs 50 min to check partition among **400** random relays. Here's the result obtained
