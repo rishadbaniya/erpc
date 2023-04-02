@@ -80,7 +80,7 @@ The total 2 relay combinatiosn that were in failed circuit were 19478
 ```
 
 ## Logs for checking relay partition with two hop circuits combination among 400 random relays 
-I ran the partition checking tool for ~ 6 hrs 50 min to check partition among **400** random relays. Here's the result obtained
+I ran the partition checking tool for ~ 6 hrs 50 min to check partition among **400** random relays, with 5 second gap between every two circuit build attempt. Here's the result obtained
 
 Here's a snippet of one of the line of data produced during that run in [Data.csv](https://github.com/rishadbaniya/rpc/blob/main/data.csv)
 ```
