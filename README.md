@@ -25,7 +25,7 @@ Options:
 or build the binary and follow the arguments
 
 
-## OnionPerf Logs of current run 
+## Logs of current OnionPerf data
 
 ```
 Downloading OnionPerfData from https://collector.torproject.org/recent/onionperf/2023-03-31.op-de7a.onionperf.analysis.json.xz
