@@ -35,8 +35,6 @@ use tor_proto::circuit::ClientCirc;
 use tor_proto::stream::StreamParameters;
 use tor_rtcompat::Runtime;
 
-const NO_OF_RELAYS_TO_TEST: usize = 400;
-
 //#[command(author, version, about, long_about = None)]
 #[derive(Debug, Parser)]
 struct Args {
@@ -46,7 +44,7 @@ struct Args {
 
     /// Total no of relays to test randomly from the given data type of the value
     #[arg(short, long, default_value_t = 400)]
-    relay_count: u16,
+    relay_count: usize,
 
     /// Total no of relays to test randomly from the given data type of the value
     #[arg(short, long, default_value_t = false)]
@@ -55,7 +53,7 @@ struct Args {
     /// Total no of threads to spin i.e total arti_clients you wannaa spin
     /// Please make it multiple of 5
     #[arg(short, long, default_value_t = 40)]
-    no_of_threads_to_spin: u16,
+    no_of_threads_to_spin: usize,
 }
 
 #[derive(Debug, Clone)]
@@ -119,6 +117,7 @@ fn gen_thread(
     index_of_random_relays: Vec<u32>,
     total_sub_nodes: usize,
     storage: Arc<Mutex<Vec<LogData>>>,
+    no_of_relays_to_be_tested_globally: usize,
 ) -> std::thread::JoinHandle<()> {
     let handle = std::thread::spawn(move || {
         let rt = tokio::runtime::Builder::new_current_thread()
@@ -131,7 +130,7 @@ fn gen_thread(
 
             // NO_OF_RELAYS_TO_TEST is the hardcoded no of relays to test
             // let's call threads as sub nodes haha
-            let no_of_relays_to_test = NO_OF_RELAYS_TO_TEST / total_sub_nodes;
+            let no_of_relays_to_test = no_of_relays_to_be_tested_globally / total_sub_nodes;
             let from = i * no_of_relays_to_test;
             let to = (i * no_of_relays_to_test) + no_of_relays_to_test;
 
@@ -191,6 +190,7 @@ fn gen_thread(
                             time: Utc::now(),
                             err,
                         };
+
                         storage.lock().await.push(log_data.clone());
                         sleep(Duration::from_secs(5)).await;
                         println!("{}", log_data.to_csv());
@@ -210,6 +210,7 @@ fn main() {
     // Checks for 2 hop circuits in onion perf
     if args.should_test_onion_perf {
         let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
             .build()
             .unwrap();
 
@@ -221,250 +222,40 @@ fn main() {
         });
     }
 
-    // Let's keep it multiple of 5 right now for test purpose
-    //    let log_storage: Arc<Mutex<Vec<LogData>>> = Arc::default();
-    //    let no_of_threads = 40;
-    //    let mut rng = rand::thread_rng();
-    //
-    //    // We haven't counted relay here, lets assume upper bound of 6500, whcih means i won't be
-    //    // selecting the randoms higher than 6500 index, no worries its just a test :)
-    //    let random_relays: Vec<u32> = (0..=6500)
-    //        .choose_multiple(&mut rng, NO_OF_RELAYS_TO_TEST)
-    //        .into_iter()
-    //        .collect();
-    //
-    //    let mut handles = vec![];
-    //    for i in 0..no_of_threads {
-    //        handles.push(gen_thread(
-    //            i,
-    //            random_relays.clone(),
-    //            no_of_threads,
-    //            log_storage.clone(),
-    //        ));
-    //    }
-    //
-    //    // it waits for all the threads to finish sequentially, we don't care about it right now, all
-    //    // we care about right now is that it makes sure all of them finish
-    //    for handle in handles {
-    //        let _ = handle.join();
-    //    }
-    //
-    //    let file = std::fs::File::create("data.csv").expect("Error creating file");
-    //    let mut writer = std::io::BufWriter::new(file);
-    //
-    //    for log_data in &(*log_storage.blocking_lock()) {
-    //        let _ = writer.write_fmt(format_args!("{}\n", log_data.to_csv()));
-    //    }
-    //
-    // let tor_client_config = TorClientConfig::default();
+    //Let's keep it multiple of 5 right now for test purpose
+    let log_storage: Arc<Mutex<Vec<LogData>>> = Arc::default();
+    let no_of_threads = args.no_of_threads_to_spin;
+    let mut rng = rand::thread_rng();
 
-    // // Builds net_dir based on latest md_consensus
-    // let net_dir = client.dirmgr().timely_netdir().unwrap();
-    // let relays: Vec<Relay> = net_dir.relays().into_iter().map(|x| x).collect();
+    // We haven't counted relay here, lets assume upper bound of 6500, whcih means i won't be
+    // selecting the randoms higher than 6500 index, no worries its just a test :)
+    let random_relays: Vec<u32> = (0..=6500)
+        .choose_multiple(&mut rng, args.relay_count)
+        .into_iter()
+        .collect();
 
-    //let cir_mgr = client.circmgr();
-    //for i in 0..500 {
-    //let _net_dir = net_dir.clone();
-    //let _cir_mgr = cir_mgr.clone();
+    let mut handles = vec![];
+    let no_of_relays_to_be_tested_globally = args.relay_count;
+    for i in 0..no_of_threads {
+        handles.push(gen_thread(
+            i,
+            random_relays.clone(),
+            no_of_threads,
+            log_storage.clone(),
+            no_of_relays_to_be_tested_globally,
+        ));
+    }
 
-    //    let p = tokio::task::spawn(async move {
-    //        let relays: Vec<Relay> = _net_dir
-    //            .relays()
-    //            .into_iter()
-    //            .map(|x| x.to_owned())
-    //            .collect();
+    // it waits for all the threads to finish sequentially, we don't care about it right now, all
+    // we care about right now is that it makes sure all of them finish
+    for handle in handles {
+        let _ = handle.join();
+    }
 
-    //        let relay_1 = relays[i].clone();
-    //        let relay_2 = relays[i + 1].clone();
-    //        let c_mgr = _cir_mgr;
+    let file = std::fs::File::create("data.csv").expect("Error creating file");
+    let mut writer = std::io::BufWriter::new(file);
 
-    //        let path = tor_circmgr::path::TorPath::new_multihop::<()>(vec![
-    //            relay_1.clone(),
-    //            relay_2.clone(),
-    //        ]);
-
-    //        let circ_parameters = CircParameters::default();
-    //        let circ_usage = ChannelUsage::UselessCircuit;
-
-    //        let cir = cir_mgr
-    //            .builder()
-    //            .build(&path, &circ_parameters, circ_usage)
-    //            .await;
-    //        match cir {
-    //            Ok(c) => {
-    //                println!("SUCCESS");
-    //                //                            //println!("{:#?}", c.channel());
-    //                //                            println!("Time {:?}", std::time::Instant::now().duration_since(t));
-    //                //
-    //                //                           let x = c
-    //                //                               .begin_stream("142.251.46.174", 80, Some(StreamParameters::default()))
-    //                //                               .await;
-    //                //                           println!("{:#?}", x);
-    //                //                           c.terminate();
-    //            }
-    //            Err(x) => {
-    //                println!("{:#?}", x);
-    //            }
-    //        }
-    //    });
-    //    //handles.push(p);
-    //}
-
-    //        let path = tor_circmgr::path::TorPath::new_multihop::<()>(vec![
-    //
-    //            relays[i].clone(),
-    //            relays[i + 1].clone(),
-    //            relays[i + 2].clone(),
-    //            relays[i + 3].clone(),
-    //            relays[i + 4].clone(),
-    //        ]);
-    //
-    //        let circ_parameters = CircParameters::default();
-    //        let circ_usage = ChannelUsage::UselessCircuit;
-    //
-    //        let cir_mgr = client.circmgr();
-    //
-    //        let t = std::time::Instant::now();
-    //        let cir = cir_mgr
-    //            .builder()
-    //            .build(&path, &circ_parameters, circ_usage)
-    //            .await;
-    //        match cir {
-    //            Ok(c) => {
-    //                //println!("{:#?}", c.channel());
-    //                println!("Time {:?}", std::time::Instant::now().duration_since(t));
-    //
-    //                let x = c
-    //                    .begin_stream("142.251.46.174", 80, Some(StreamParameters::default()))
-    //                    .await;
-    //                println!("{:#?}", x);
-    //                c.terminate();
-    //            }
-    //            Err(x) => {
-    //                //println!("{:#?}", x);
-    //            }
-    //}
-
-    //tokio::time::sleep(Duration::from_secs(100)).await;
-    //    //match cir {
-    //Ok(a) => {
-    //println!("{:?}", a);
-    ////a.terminate();
-    ////println!("{:?}", a.is_closing());
-    ////println!("{:#?}", a);
-    //}
-    //Err(b) => {}
+    for log_data in &(*log_storage.blocking_lock()) {
+        let _ = writer.write_fmt(format_args!("{}\n", log_data.to_csv()));
+    }
 }
-
-//let total_two_hops_relay_circuits =
-//generate_all_relay_two_hop_circuit_combinations(relays.clone());
-
-//let x: Vec<(Relay, Relay)> = total_two_hops_relay_circuits
-//.into_iter()
-//.flatten()
-//.collect();
-
-//println!("the length is {:?}", x.len());
-
-//let mut ok = Arc::new(Mutex::new(0));
-//let mut err = Arc::new(Mutex::new(0));
-
-//let cir_mgr = tor_client.circmgr().clone();
-
-//for relay in relays {
-////tokio::spawn(async move {
-
-////});
-
-////let path = tor_circmgr::path::TorPath::new_one_hop((relay).clone());
-//let path = tor_circmgr::path::TorPath::new_multihop([relays[0], relays[1]]);
-//let circ_parameters = CircParameters::default();
-//let circ_usage = ChannelUsage::UselessCircuit;
-
-//let cir = cir_mgr
-//.builder()
-//.build(&path, &circ_parameters, circ_usage)
-//.await;
-//match cir {
-//Ok(a) => {
-//println!("{:?}", a);
-////a.terminate();
-////println!("{:?}", a.is_closing());
-////println!("{:#?}", a);
-//}
-//Err(b) => {}
-//}
-//[>_ok = *_ok + 1;
-//} else {
-//println!("I got error :{:?}", err);
-//let mut _err = ok.lock().await;
-//[>_err = *_err + 1;
-//}
-//
-//.build(&path, &circ_parameters, circ_usage)
-//.await;
-
-//for relay in relays {
-////let path = tor_circmgr::path::TorPath::new_multihop(vec![relays[0].clone(), relays[1].clone()]);
-//let path = tor_circmgr::path::TorPath::new_one_hop(relay.clone());
-//let circ_parameters = CircParameters::default();
-//let circ_usage = ChannelUsage::UselessCircuit;
-
-//if x.is_ok() {
-//ok += 1;
-//println!("Ok {:?}", ok);
-//} else {
-//err += 1;
-//println!("Err {:?}", err);
-//}
-//tokio::task::spawn(async {});
-//}
-
-//let path = tor_circmgr::path::TorPath::new_multihop(vec![relays[0].clone(), relays[1].clone()]);
-
-//let circ = arti_client
-//.circmgr()
-//.builder()
-//.build(&path, &params, usage)
-//.await;
-//let x = Ci
-//let params = CircParameters::default();
-//let usage = ChannelUsage::UselessCircuit;
-//let x = tor_client.di
-//let net_dir = tor_client
-
-//let x = tor_netdoc::doc::netstatus::Consensus<Relay>;
-// NOTE : These are directly created from the tor_netdoc, gotta use tor_netdir to create
-// abstractions on the ones of tor_netdoc
-//let file_contents = fs::read_to_string("test_md_consensus").unwrap();
-//let (_, _, x) = MdConsensus::parse(&file_contents).unwrap();
-//let (m, t) = x.dangerously_into_parts();
-
-//let md_consensus = m.consensus;
-
-//let net_dir = PartialNetDir::new(md_consensus, None);
-
-//print!("{:#?}", net_dir);
-////let x = net_dir.missing_microdescs();
-
-//println!("{:?}", net_dir.n_missing());
-
-//TorPath::new_multihop(path);
-
-// Generate the Microdescriptor consensus document at the default storage provided by storage
-// config
-// TODO: Make use of it to explore the Relay
-
-//let mut tor_client_config_builder = TorClientConfig::builder();
-
-//let x = TorPath::new_multihop(relays);
-//let y = tor_client_config_builder.path_rules();
-//let x: AddrPortPattern = "198.98.61.11:9001".parse().unwrap();
-// Keeping the empty reachable
-//y.set_reachable_addrs(vec![]);
-//y.set_reachable_addrs(vec![x]);
-
-//let tor_client_config = tor_client_config_builder.build().unwrap();
-
-//.await
-//.unwrap();
