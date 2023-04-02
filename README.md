@@ -11,11 +11,11 @@ Usage: rpc [OPTIONS]
 
 Options:
   -g, --gap-duration <GAP_DURATION>
-          Wait duration in seconds [default: 5]
+          Wait duration in seconds(time to wait for creating next circuit using the same relay) [default: 5]
   -r, --relay-count <RELAY_COUNT>
           Total no of relays to test randomly from the given data type of the value [default: 400]
   -s, --should-test-onion-perf
-          Total no of relays to test randomly from the given data type of the value
+          If we should check the onion perf data and log the output or not
   -n, --no-of-threads-to-spin <NO_OF_THREADS_TO_SPIN>
           Total no of threads to spin i.e total arti_clients you wannaa spin Please make it multiple of 5 [default: 40]
   -h, --help

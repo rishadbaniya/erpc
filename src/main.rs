@@ -1,44 +1,31 @@
-// NOTE: THIS CODE IS UNOPTIMIZED IN SO MANYYYYYYYYYY WAYS, GONNA OPTIMIZE LATER ON LETS PRODUCE A
-// WORKING EXAMPLE RIGHT NOW
+// TODO : This code is unoptimized in so manyyyyyyyyyy ways, gonna optimize later on, lets produce a working example right now
+// TODO : Write tests
+// TODO : Figure out a way to not create threads and just use single thread but tons of tokio tasks somehow
 
 mod onion_perf_circuits;
 use arti_client::config::CfgPath;
 use clap::Parser;
 // TODO : Check for Bridge Rlelay Partitioning from other(non bridge relay)
-use arti_client::config::circ::PathConfigBuilder;
-use arti_client::TorClient;
-use arti_client::TorClientConfig;
-use chrono::DateTime;
-use chrono::Utc;
+use arti_client::{config::circ::PathConfigBuilder, TorClient, TorClientConfig};
+use chrono::{DateTime, Utc};
 use onion_perf_circuits::OnionPerfData;
 use rand::seq::IteratorRandom;
-use std::fs;
-use std::io::Write;
-use std::net::SocketAddr;
-use std::sync::Arc;
-use std::time::Duration;
-use std::vec;
-use tokio::net::TcpStream;
-use tokio::sync::Mutex;
-use tokio::time::sleep;
+use std::{fs, io::Write, net::SocketAddr, sync::Arc, time::Duration, vec};
+use tokio::{net::TcpStream, sync::Mutex, time::sleep};
 use tor_chanmgr::ChannelUsage;
-use tor_circmgr::path::TorPath;
-use tor_circmgr::CircMgr;
-use tor_netdir::MdReceiver;
-use tor_netdir::PartialNetDir;
-use tor_netdir::Relay;
-use tor_netdoc::doc::netstatus::Consensus;
-use tor_netdoc::doc::netstatus::MdConsensus;
-use tor_netdoc::doc::netstatus::RouterStatus;
-use tor_proto::circuit::CircParameters;
-use tor_proto::circuit::ClientCirc;
-use tor_proto::stream::StreamParameters;
+use tor_circmgr::{path::TorPath, CircMgr};
+use tor_netdir::{MdReceiver, PartialNetDir, Relay};
+use tor_netdoc::doc::netstatus::{Consensus, MdConsensus, RouterStatus};
+use tor_proto::{
+    circuit::{CircParameters, ClientCirc},
+    stream::StreamParameters,
+};
 use tor_rtcompat::Runtime;
 
 //#[command(author, version, about, long_about = None)]
 #[derive(Debug, Parser)]
 struct Args {
-    /// Wait duration in seconds
+    /// Wait duration in seconds(time to wait for creating next circuit using the same relay)
     #[arg(short, long, default_value_t = 5)]
     gap_duration: u16,
 
@@ -46,7 +33,7 @@ struct Args {
     #[arg(short, long, default_value_t = 400)]
     relay_count: usize,
 
-    /// Total no of relays to test randomly from the given data type of the value
+    /// If we should check the onion perf data and log the output or not
     #[arg(short, long, default_value_t = false)]
     should_test_onion_perf: bool,
 
@@ -75,13 +62,7 @@ impl LogData {
             Some(ref e) => e.clone(),
             None => "No error".to_owned(),
         };
-        format!(
-            "{},{},{},{}",
-            self.source_relay,
-            self.destination_relay,
-            self.time.to_string(),
-            err
-        )
+        format!("{},{},{},{}", self.source_relay, self.destination_relay, self.time.to_string(), err)
     }
 }
 impl Default for LogData {
@@ -98,9 +79,7 @@ impl Default for LogData {
 //use onion_perf_circuits;
 
 // NOTE : Not used rigth now
-pub fn generate_all_relay_two_hop_circuit_combinations(
-    relays: Vec<Relay>,
-) -> Vec<Vec<(Relay, Relay)>> {
+pub fn generate_all_relay_two_hop_circuit_combinations(relays: Vec<Relay>) -> Vec<Vec<(Relay, Relay)>> {
     let mut total_two_hops: Vec<Vec<(Relay, Relay)>> = vec![];
     for i in 1..relays.len() {
         let mut two_hops: Vec<(Relay, Relay)> = vec![];
@@ -120,10 +99,7 @@ fn gen_thread(
     no_of_relays_to_be_tested_globally: usize,
 ) -> std::thread::JoinHandle<()> {
     let handle = std::thread::spawn(move || {
-        let rt = tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build()
-            .unwrap();
+        let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
 
         rt.block_on(async move {
             // The batch of work given to it by the main thread
@@ -142,9 +118,7 @@ fn gen_thread(
             storage_config.cache_dir(cfg_path.clone());
             storage_config.state_dir(cfg_path.clone());
 
-            let client = TorClient::create_bootstrapped(tor_client_config.build().unwrap())
-                .await
-                .unwrap();
+            let client = TorClient::create_bootstrapped(tor_client_config.build().unwrap()).await.unwrap();
 
             // Builds net_dir based on latest md_consensus
             let net_dir = client.dirmgr().timely_netdir().unwrap();
@@ -165,10 +139,7 @@ fn gen_thread(
                         let circ_parameters = CircParameters::default();
                         let circ_usage = ChannelUsage::UselessCircuit;
 
-                        let cir = cir_mgr
-                            .builder()
-                            .build(&path, &circ_parameters, circ_usage)
-                            .await;
+                        let cir = cir_mgr.builder().build(&path, &circ_parameters, circ_usage).await;
 
                         // If error then just simply give me the stringified version of that error
                         let err: Option<String> = match cir {
@@ -182,11 +153,7 @@ fn gen_thread(
 
                         let log_data = LogData {
                             source_relay: relay_1.rs().rsa_identity().to_string().replace("$", ""),
-                            destination_relay: relay_2
-                                .rs()
-                                .rsa_identity()
-                                .to_string()
-                                .replace("$", ""),
+                            destination_relay: relay_2.rs().rsa_identity().to_string().replace("$", ""),
                             time: Utc::now(),
                             err,
                         };
@@ -209,16 +176,11 @@ fn main() {
     let args = Args::parse();
     // Checks for 2 hop circuits in onion perf
     if args.should_test_onion_perf {
-        let rt = tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build()
-            .unwrap();
+        let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
 
         rt.block_on(async {
             let mut onion_perf_data = OnionPerfData::new().await.unwrap();
-            onion_perf_data
-                .create_all_relay_to_relay_combinations()
-                .await;
+            onion_perf_data.create_all_relay_to_relay_combinations().await;
         });
     }
 
@@ -229,10 +191,7 @@ fn main() {
 
     // We haven't counted relay here, lets assume upper bound of 6500, whcih means i won't be
     // selecting the randoms higher than 6500 index, no worries its just a test :)
-    let random_relays: Vec<u32> = (0..=6500)
-        .choose_multiple(&mut rng, args.relay_count)
-        .into_iter()
-        .collect();
+    let random_relays: Vec<u32> = (0..=6500).choose_multiple(&mut rng, args.relay_count).into_iter().collect();
 
     let mut handles = vec![];
     let no_of_relays_to_be_tested_globally = args.relay_count;
