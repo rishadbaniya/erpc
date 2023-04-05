@@ -91,3 +91,7 @@ Here the field of the CSV represents the **source_relay**,**source_relay**,**utc
 
 I saw many errors to be **Circuit took too long to build** and **Problem opening a channel to [scrubbed]**, which i'm still trying to interpret properly and might need to go deep into how arti_client does that timeout, whether it sums up the time taken 
 to connect to the guard relay or not, or it just calculates the circuit build time based on time taken to get the EXTENDED sort of CIRC EVENTS, i've still got plenty of room to figure out the ways to look beneath the abstraction and see how things are working, in few weeks i hope to finish this tool with proper optimizations
+
+
+# TODOs
+- Make use of ```pub fn isolated_client(&self) -> TorClient<R>``` rather than creating multiple threads and spinning each TorClient
